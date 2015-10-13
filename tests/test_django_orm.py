@@ -30,10 +30,11 @@ import unittest
 # Mock a Django environment
 from django.conf import global_settings
 global_settings.SECRET_KEY = 'NotASecret'
-os.environ['DJANGO_SETTINGS_MODULE'] = 'django_settings'
-sys.modules['django_settings'] = django_settings = imp.new_module(
-    'django_settings')
-django_settings.SECRET_KEY = 'xyzzy'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.test_django_settings'
+from django.conf import settings
+settings.SECRET_KEY = 'xyzzy'
+
+
 from django.db import models
 
 from oauth2client._helpers import _from_bytes
