@@ -20,13 +20,22 @@ from six import wraps
 
 
 def _redirect_with_params(url_name, *args, **kwargs):
-    import urllib
+    from six.moves.urllib.parse import urlencode
     url = reverse(url_name, args=args)
-    params = urllib.urlencode(kwargs)
-    return HttpResponseRedirect(url + "?%s" % params)
+    params = urlencode(kwargs)
+    return HttpResponseRedirect("{0}?{1}".format(url, params))
 
 
 def required(decorated_function=None, scopes=None, **decorator_kwargs):
+    """ Decorator to require OAuth2 credentials for a view
+
+    :param decorated_function: Function to decorate
+    :param scopes: Scopes to require, will default
+    :param decorator_kwargs: Can include return_url to specify the URL to
+    return to after OAuth2 authorization is complete
+    :return: An OAuth2 Authorize view if credentials are not found or if the credentials
+    are missing the required scopes. Otherwise, the decorated view.
+    """
     def curry_wrapper(wrapped_function):
         @wraps(wrapped_function)
         def required_wrapper(request, *args, **kwargs):
@@ -35,22 +44,26 @@ def required(decorated_function=None, scopes=None, **decorator_kwargs):
             storage = get_storage(request)
             credentials = storage.get()
 
-            requested_scopes = list(oauth2.scopes) + (scopes or [])
+            requested_scopes = set(oauth2.scopes)
+            if scopes is not None:
+                requested_scopes |= set(scopes)
+
             if credentials:
-                requested_scopes += list(credentials.scopes)
+                requested_scopes |= credentials.scopes
 
             # If no credentials or if existing credentials but mismatching
             # scopes, redirect for incremental authorization.
-            if not credentials or not credentials.has_scopes(requested_scopes):
-                get_params = {
-                    'return_url': return_url,
-                }
-                if scopes:
-                    get_params['scopes[]'] = requested_scopes
-                return _redirect_with_params('google_oauth:authorize',
-                                             **get_params)
-            request.credentials = credentials
-            return wrapped_function(request, *args, **kwargs)
+            if credentials and credentials.has_scopes(requested_scopes):
+                request.credentials = credentials
+                return wrapped_function(request, *args, **kwargs)
+            get_params = {
+                'return_url': return_url,
+            }
+            if scopes:
+                get_params['scopes[]'] = requested_scopes
+            return _redirect_with_params('google_oauth:authorize',
+                                         **get_params)
+
 
         return required_wrapper
 

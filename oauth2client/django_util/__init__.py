@@ -23,22 +23,24 @@ that user credentials are available.
 Configuration
 =============
 
-First, add the helper to your INSTALLED_APPS:
+To configure, you'll need a set of OAuth2 web application credentials from
+`Google Developer's Console <https://console.developers.google.com/project/_/\
+apiui/credential>`__.
+
+Add the helper to your INSTALLED_APPS:
 
 INSTALLED_APPS = (
     # other apps
     "oauth2client.django_util"
 )
 
-To configure, you'll need a set of OAuth2 web application credentials from
-`Google Developer's Console <https://console.developers.google.com/project/_/\
-apiui/credential>`__.
+
 
 .. code-block:: python
    :caption: settings.py
    :name: settings-file
 
-   GOOGLE_OAUTH2_CLIENT_SECRETS_JSON=client-secret.json file
+   GOOGLE_OAUTH2_CLIENT_SECRETS_JSON=/path/to/client-secret.json
 
 Or,
 
@@ -55,7 +57,7 @@ By default, the default scopes for the required decorator only contains the
 GOOGLE_OAUTH2_SCOPES = ('https://www.googleapis.com/auth/calendar',)
 
 
-then in your urls.py
+Add the oauth2 routes to your application's urls.py
 
 .. code-block:: python
    :caption: urls.py
@@ -64,7 +66,8 @@ then in your urls.py
 
    urlpatterns += [url(r'^oauth2/', include(oauth2_urls))]
 
-Finally, on any of your views add the decorator
+To require OAuth2 credentials for a view, use the `required`
+decorator.
 
 from oauth2client.django_util.decorators import required
 
@@ -83,6 +86,14 @@ def requires_calendar_view(request):
                     developerKey=YOUR_API_KEY)
   events = service.events().list(calendarId='primary').execute()['items']
 
+To provide a callback on authorization being completed, use the oauth2_authorized
+signal:
+
+.. code-block:: python
+
+   from oauth2client.django_util.signals import oauth2_authorized
+
+   oauth2_authorized.connect(my_callback)
 
 """
 from django.conf import settings
@@ -98,7 +109,8 @@ def _load_client_secrets(filename):
 
     if client_type != clientsecrets.TYPE_WEB:
         raise ValueError(
-            'The flow specified in %s is not supported.' % client_type)
+            'The flow specified in {} is not supported, only the WEB flow type is '
+            'supported.'.format(client_type))
     return client_info['client_id'], client_info['client_secret']
 
 
@@ -127,11 +139,10 @@ class UserOAuth2(object):
 
         if 'django.contrib.sessions.middleware.SessionMiddleware' not in \
                 settings_instance.MIDDLEWARE_CLASSES:
-            raise ImproperlyConfigured("The Google OAuth2 Helper requires "
-                                       "session middleware to be installed."
-                                       "Edit your MIDDLEWARE_CLASSES setting"
-                                       " to include "
-                                       "'django.contrib.sessions.middleware.\
-                                       SessionMiddleware'.")
+            raise ImproperlyConfigured(
+                "The Google OAuth2 Helper requires session middleware to "
+                "be installed. Edit your MIDDLEWARE_CLASSES setting"
+                " to include 'django.contrib.sessions.middleware."\
+                "SessionMiddleware'.")
 
 oauth2 = UserOAuth2(settings)

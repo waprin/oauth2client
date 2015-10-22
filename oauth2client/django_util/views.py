@@ -26,12 +26,15 @@ from oauth2client.django_util.signals import oauth2_authorized
 from oauth2client.django_util.storage import get_storage
 
 
+_CSRF_KEY = 'google_oauth2_csrf_token'
+_FLOW_KEY = 'google_oauth2_flow_{0}'
+
 def _make_flow(request, scopes, return_url=None):
     """Creates a Web Server Flow"""
     # Generate a CSRF token to prevent malicious requests.
     csrf_token = hashlib.sha256(os.urandom(1024)).hexdigest()
 
-    request.session['google_oauth2_csrf_token'] = csrf_token
+    request.session[_CSRF_KEY] = csrf_token
 
     state = json.dumps({
         'csrf_token': csrf_token,
@@ -46,31 +49,42 @@ def _make_flow(request, scopes, return_url=None):
         redirect_uri=request.build_absolute_uri(
             reverse("google_oauth:callback")))
 
-    flow_key = 'google_oauth2_flow_{0}'.format(csrf_token)
+    flow_key = _FLOW_KEY.format(csrf_token)
     request.session[flow_key] = pickle.dumps(flow)
     return flow
 
 
 def _get_flow_for_token(csrf_token, request):
+    """ Looks up the flow in session to recover information about requested scopes """
     flow_pickle = request.session.get(
-        'google_oauth2_flow_{0}'.format(csrf_token), None)
-    if not flow_pickle:
-        return
+        _FLOW_KEY.format(csrf_token), None)
+    if flow_pickle is None:
+        return None
     return pickle.loads(flow_pickle)
 
 
 def oauth2_callback(request):
+    """ View that handles the user's return from OAuth2 provider
+
+    This view verifies the CSRF state and OAuth authorization code,
+    and on success stores the credentials obtained in the
+    storage provider, and redirects to the return_url specified
+    in the authorize view and stored in the session.
+
+    :param request: Django request
+    :return: A redirect response back to the return_url
+    """
     if 'error' in request.GET:
-        reason = request.GET.get('error_description',
-                                 request.GET.get('error', ''))
+        reason = request.GET.get(
+            'error_description', request.GET.get('error', ''))
         return HttpResponseBadRequest(
             'Authorization failed failed: %s' % reason)
 
-    encoded_state = request.GET.get('state')
-    server_csrf = request.session.get('google_oauth2_csrf_token')
-    code = request.GET.get('code', None)
-
-    if not encoded_state or not code or not server_csrf:
+    try:
+        encoded_state = request.GET['state']
+        server_csrf = request.session[_CSRF_KEY]
+        code = request.GET['code']
+    except KeyError:
         return HttpResponseBadRequest("Invalid Request")
 
     try:
@@ -79,6 +93,7 @@ def oauth2_callback(request):
         return_url = state['return_url']
     except (ValueError, KeyError):
         return HttpResponseBadRequest('Invalid request state')
+
     if client_csrf != server_csrf:
         return HttpResponseBadRequest('Invalid request state')
 
@@ -92,6 +107,7 @@ def oauth2_callback(request):
     except FlowExchangeError as exchange_error:
         return HttpResponseBadRequest(
             "An error has occurred: {0}".format(exchange_error))
+
     get_storage(request).put(credentials)
 
     oauth2_authorized.send(sender=oauth2_authorized)
@@ -99,6 +115,18 @@ def oauth2_callback(request):
 
 
 def oauth2_authorize(request):
+    """ View to start the OAuth2 Authorization flow
+
+    This view starts the OAuth2 authorization flow. If scopes is passed in as a GET URL
+    parameter, it will authorize those scopes, otherwise the
+    default scopes specified in settings. The return_url can
+    also be specified as a GET parameter, otherwise the referer
+    header will be checked, and if that isn't found it will
+    return to the root path.
+
+    :param request: The Django request object
+    :return: A redirect to Google OAuth2 Authorization
+    """
     scopes = request.GET.getlist('scopes', oauth2.scopes)
     return_url = request.GET.get('return_url', None)
 

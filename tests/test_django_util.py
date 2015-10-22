@@ -120,7 +120,7 @@ class Oauth2DecoratorTest(TestWithSession):
     def test_has_credentials_in_storage(self, OAuth2Credentials):
         request = self.factory.get('/test')
         request.session = MagicMock()
-        credentials_mock = Mock(scopes=django_settings.GOOGLE_OAUTH2_SCOPES)
+        credentials_mock = Mock(scopes=set(django_settings.GOOGLE_OAUTH2_SCOPES))
         credentials_mock.has_scopes.return_value = True
 
         OAuth2Credentials.from_json.return_value = credentials_mock
@@ -138,7 +138,7 @@ class Oauth2DecoratorTest(TestWithSession):
         request = self.factory.get('/test')
 
         request.session = MagicMock()
-        credentials_mock = Mock(scopes=django_settings.GOOGLE_OAUTH2_SCOPES)
+        credentials_mock = Mock(scopes=set(django_settings.GOOGLE_OAUTH2_SCOPES))
         credentials_mock.has_scopes.return_value = False
 
         OAuth2Credentials.from_json.return_value = credentials_mock
@@ -155,7 +155,7 @@ class Oauth2DecoratorTest(TestWithSession):
         request = self.factory.get('/test')
         request.session = MagicMock()
 
-        credentials_mock = Mock(scopes=django_settings.GOOGLE_OAUTH2_SCOPES)
+        credentials_mock = Mock(scopes=set(django_settings.GOOGLE_OAUTH2_SCOPES))
         credentials_mock.has_scopes = lambda scopes: \
             django_settings.GOOGLE_OAUTH2_SCOPES in list(scopes)
         OAuth2Credentials.from_json.return_value = credentials_mock

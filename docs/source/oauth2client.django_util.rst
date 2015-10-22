@@ -8,7 +8,6 @@ Submodules
 
    oauth2client.django_util.apps
    oauth2client.django_util.decorators
-   oauth2client.django_util.settings
    oauth2client.django_util.signals
    oauth2client.django_util.site
    oauth2client.django_util.storage

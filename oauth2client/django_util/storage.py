@@ -17,19 +17,23 @@ from oauth2client.client import OAuth2Credentials, Storage
 
 
 def get_storage(request):
+    """
+    :param request: Reference to the current request object
+    :return: A OAuth2Client Storage implementation based on sessions
+    """
     return DjangoSessionStorage(request.session)
+
+_CREDENTIALS_KEY = 'google_oauth2_credentials'
 
 
 class DjangoSessionStorage(Storage):
-    """Storage implementation that uses Django sessions.
-    implementation.
-    """
+    """Storage implementation that uses Django sessions."""
 
     def __init__(self, session):
         self.session = session
 
     def locked_get(self):
-        serialized = self.session.get('google_oauth2_credentials')
+        serialized = self.session.get(_CREDENTIALS_KEY)
 
         if serialized is None:
             return None
@@ -40,8 +44,8 @@ class DjangoSessionStorage(Storage):
         return credentials
 
     def locked_put(self, credentials):
-        self.session['google_oauth2_credentials'] = credentials.to_json()
+        self.session[_CREDENTIALS_KEY] = credentials.to_json()
 
     def locked_delete(self):
-        if 'google_oauth2_credentials' in self.session:
-            del self.session['google_oauth2_credentials']
+        if _CREDENTIALS_KEY in self.session:
+            del self.session[_CREDENTIALS_KEY]

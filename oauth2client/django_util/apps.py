@@ -17,9 +17,9 @@ from django.apps import AppConfig
 
 
 class GoogleOAuth2HelperConfig(AppConfig):  # pragma: NO COVER
-    """ App Config for Django Helper
-    Not covered by tests since it's only run when installed by a Django app,
-    and the tests don't setup a complete Django environment.
-    """
+    """ App Config for Django Helper"""
+    #Not covered by tests since it's only run when installed by a Django app,
+    #and the tests don't setup a complete Django environment.
+
     name = 'oauth2client.django_util'
     verbose_name = "Google OAuth2 Django Helper"
