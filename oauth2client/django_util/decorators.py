@@ -31,10 +31,11 @@ def required(decorated_function=None, scopes=None, **decorator_kwargs):
 
     :param decorated_function: Function to decorate
     :param scopes: Scopes to require, will default
-    :param decorator_kwargs: Can include return_url to specify the URL to
+    :param decorator_kwargs: Can include return_url to specify the URL to \
     return to after OAuth2 authorization is complete
-    :return: An OAuth2 Authorize view if credentials are not found or if the credentials
+    :return: An OAuth2 Authorize view if credentials are not found or if the credentials \
     are missing the required scopes. Otherwise, the decorated view.
+
     """
     def curry_wrapper(wrapped_function):
         @wraps(wrapped_function)

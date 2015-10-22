@@ -29,38 +29,48 @@ apiui/credential>`__.
 
 Add the helper to your INSTALLED_APPS:
 
-INSTALLED_APPS = (
-    # other apps
-    "oauth2client.django_util"
-)
-
-
-
 .. code-block:: python
    :caption: settings.py
-   :name: settings-file
+   :name: installed_apps
+
+    INSTALLED_APPS = (
+        # other apps
+        "oauth2client.django_util"
+    )
+
+Add the client secrets created earlier to the settings. You can
+either specify the path to the credentials file in JSON format
+
+.. code-block:: python
+   :caption:  settings.py
+   :name: secrets_file
 
    GOOGLE_OAUTH2_CLIENT_SECRETS_JSON=/path/to/client-secret.json
 
-Or,
+Or, directly configure the client Id and client secret.
+
 
 .. code-block:: python
    :caption: settings.py
-
+   :name: secrets_config
 
    GOOGLE_OAUTH2_CLIENT_ID=client-id-field
    GOOGLE_OAUTH2_CLIENT_SECRET=client-secret-field
 
 By default, the default scopes for the required decorator only contains the
-(email) scopes. You can change that default in the settings.
+``email`` scopes. You can change that default in the settings.
 
-GOOGLE_OAUTH2_SCOPES = ('https://www.googleapis.com/auth/calendar',)
+.. code-block:: python
+    :caption: settings.py
+    :name: scopes
 
+    GOOGLE_OAUTH2_SCOPES = ('https://www.googleapis.com/auth/calendar',)
 
 Add the oauth2 routes to your application's urls.py
 
 .. code-block:: python
    :caption: urls.py
+   :name: urls
 
    from oauth2client.django_util.site import urls as oauth2_urls
 
@@ -69,22 +79,30 @@ Add the oauth2 routes to your application's urls.py
 To require OAuth2 credentials for a view, use the `required`
 decorator.
 
-from oauth2client.django_util.decorators import required
+.. code-block:: python
+   :caption: views.py
+   :name: views
+
+    from oauth2client.django_util.decorators import required
 
 
-@required:
-def requires_default_scopes(request):
-   email = request.credentials.id_token['email']
+    @required
+    def requires_default_scopes(request):
+       email = request.credentials.id_token['email']
 
-If a view needs a scope not explicitly set by the decorator, you can specify
-in the decorator arguments.
+If a view needs a scope not included in the default scopes specified in
+the settings, you can specify additional scopes in the decorator arguments.
 
-@required(scopes=['https://www.googleapis.com/auth/calendar')
-def requires_calendar_view(request):
-  http = request.credentials.authorize(httplib2.Http())
-  service = build(serviceName='calendar', version='v3', http=http,
-                    developerKey=YOUR_API_KEY)
-  events = service.events().list(calendarId='primary').execute()['items']
+.. code-block:: python
+   :caption: views.py
+   :name: views2
+
+    @required(scopes=['https://www.googleapis.com/auth/calendar')
+    def requires_calendar_view(request):
+      http = request.credentials.authorize(httplib2.Http())
+      service = build(serviceName='calendar', version='v3', http=http,
+                        developerKey=YOUR_API_KEY)
+      events = service.events().list(calendarId='primary').execute()['items']
 
 To provide a callback on authorization being completed, use the oauth2_authorized
 signal:
