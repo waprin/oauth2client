@@ -13,9 +13,12 @@
 # limitations under the License.
 
 from django import shortcuts
+from django.conf import settings
 from six import wraps
+from six.moves.urllib import parse
 
 from oauth2client.contrib import django_util
+
 
 
 def oauth_required(decorated_function=None, scopes=None, **decorator_kwargs):
@@ -52,6 +55,11 @@ def oauth_required(decorated_function=None, scopes=None, **decorator_kwargs):
     def curry_wrapper(wrapped_function):
         @wraps(wrapped_function)
         def required_wrapper(request, *args, **kwargs):
+            if django_util.oauth2_settings.storage_model is not None:
+                if not request.user.is_authenticated():
+                    return shortcuts.redirect(
+                        '{0}?next={1}'.format(
+                            settings.LOGIN_URL, parse.quote(request.path)))
             return_url = decorator_kwargs.pop('return_url',
                                               request.get_full_path())
             user_oauth = django_util.UserOAuth2(request, scopes, return_url)

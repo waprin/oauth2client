@@ -20,10 +20,20 @@ ensure that user credentials are available, and an ``oauth_enabled`` decorator
 to check if the user has authorized, and helper shortcuts to create the
 authorization URL otherwise.
 
+There are two basic use cases supported. The first is using Google OAuth as the
+primary form of authentication, which is the simpler approach recommended
+for applications without their own user system.
+
+The second use case is adding Google OAuth credentials to an
+existing Django model containing a Django user field. Most of the
+configuration is the same, except for `GOOGLE_OAUTH_MODEL_STORAGE` in
+ settings.py. See "Adding Credentials To An Existing Django User System" for
+ usage differences.
+
 Only Django versions 1.8+ are supported.
 
 Configuration
-=============
+===============
 
 To configure, you'll need a set of OAuth2 web application credentials from
 `Google Developer's Console <https://console.developers.google.com/project/_/apiui/credential>`.
@@ -36,8 +46,12 @@ Add the helper to your INSTALLED_APPS:
 
     INSTALLED_APPS = (
         # other apps
+        "django.contrib.sessions.middleware"
         "oauth2client.contrib.django_util"
     )
+
+This helper also requires the Django Session Middleware, so
+`django.contrib.sessions.middleware` should be in INSTALLED_APPS as well.
 
 Add the client secrets created earlier to the settings. You can either
 specify the path to the credentials file in JSON format
@@ -160,11 +174,53 @@ oauth2_authorized signal:
    from oauth2client.contrib.django_util.signals import oauth2_authorized
 
    def test_callback(sender, request, credentials, **kwargs):
-       print "Authorization Signal Received %s" % credentials.id_token['email']
+       print("Authorization Signal Received %s"
+           % credentials.id_token['email'])
 
    oauth2_authorized.connect(test_callback)
 
+Adding Credentials To An Existing Django User System
+=====================================================
+
+As an alternative to storing the credentials in the session, the helper
+can be configured to store the fields on a Django model. This might be useful
+if you need to use the credentials outside the context of a user request, and
+prevents the need for a logged in user to repeat the OAuth flow when starting a
+new session.
+
+To use, change ``settings.py``
+
+.. code-block:: python
+   :caption:  settings.py
+   :name: secrets_file
+
+   GOOGLE_OAUTH2_STORAGE_MODEL = {
+    'model': 'path.to.model.MyModel',
+    'user_property': 'user_id',
+    'credentials_property': 'credential'
+    }
+
+Where ``path.to.model`` class is the fully qualified name of a ``django.db.model``
+class containing a `django.contrib.auth.models.User` field with the
+ name specified by `user_property` and a
+`oauth2client.contrib.django_util.models.CredentialsField` with the name
+specified by `credentials_property`. For the sample configuration given,
+our model would look like
+
+.. code-block:: python
+   :caption: views.py
+   :name: views_requiredf
+   from django.contrib.auth.models import User
+   from oauth2client.contrib.django_util.models import CredentialsField
+
+   class MyModel(models.Model):
+        #  ... other fields here ...
+       user = models.OneToOneField(User)
+       credential = CredentialsField()
+
 """
+
+from importlib import import_module
 
 import django.conf
 from django.core import exceptions
@@ -173,6 +229,7 @@ import httplib2
 from six.moves.urllib import parse
 
 from oauth2client import clientsecrets
+from oauth2client.contrib.dictionary_storage import DictionaryStorage
 from oauth2client.contrib.django_util import storage
 
 GOOGLE_OAUTH2_DEFAULT_SCOPES = ('email',)
@@ -210,6 +267,23 @@ def _get_oauth2_client_id_and_secret(settings_instance):
                 "GOOGLE_OAUTH2_CLIENT_SECRET in settings.py")
 
 
+def _get_storage_model():
+    """This configures whether the credentials will be stored in the session
+    or the Django ORM based on the settings. By default, the credentials
+    will be stored in the session, unless `GOOGLE_OAUTH2_STORAGE_MODEL`
+    is found in the settings. Usually, the ORM storage is used to integrate
+    credentials into an existing Django user system.
+    """
+    storage_model_settings = getattr(django.conf.settings,
+                                     'GOOGLE_OAUTH2_STORAGE_MODEL', None)
+    if storage_model_settings is not None:
+        return (storage_model_settings['model'],
+                storage_model_settings['user_property'],
+                storage_model_settings['credentials_property'])
+    else:
+        return None, None, None
+
+
 class OAuth2Settings(object):
     """Initializes Django OAuth2 Helper Settings
 
@@ -236,15 +310,46 @@ class OAuth2Settings(object):
             _get_oauth2_client_id_and_secret(settings_instance)
 
         if ('django.contrib.sessions.middleware.SessionMiddleware'
-                not in settings_instance.MIDDLEWARE_CLASSES):
-            raise exceptions.ImproperlyConfigured(
-                "The Google OAuth2 Helper requires session middleware to "
-                "be installed. Edit your MIDDLEWARE_CLASSES setting"
-                " to include 'django.contrib.sessions.middleware."
-                "SessionMiddleware'.")
+           not in settings_instance.MIDDLEWARE_CLASSES):
+                raise exceptions.ImproperlyConfigured(
+                  'The Google OAuth2 Helper requires session middleware to '
+                  'be installed. Edit your MIDDLEWARE_CLASSES setting'
+                  ' to include \'django.contrib.sessions.middleware.'
+                  'SessionMiddleware\'.')
+        (self.storage_model, self.storage_model_user_property,
+         self.storage_model_credentials_property) = _get_storage_model()
 
 
 oauth2_settings = OAuth2Settings(django.conf.settings)
+
+_CREDENTIALS_KEY = 'google_oauth2_credentials'
+
+
+def get_storage(request):
+    """ Gets a Credentials storage object provided by the Django OAuth2 Helper
+    object
+
+    Args:
+        request: Reference to the current request object
+
+    Returns:
+       An `oauth2.client.Storage` object
+    """
+    storage_model = oauth2_settings.storage_model
+    user_property = oauth2_settings.storage_model_user_property
+    credentials_property = oauth2_settings.storage_model_credentials_property
+
+    if storage_model:
+        module_name, class_name = storage_model.rsplit('.', 1)
+        module = import_module(module_name)
+        storage_model_class = getattr(module, class_name)
+        return storage.DjangoORMStorage(storage_model_class,
+                                        user_property,
+                                        request.user,
+                                        credentials_property)
+    else:
+        # use session
+        return DictionaryStorage(request.session, key=_CREDENTIALS_KEY)
 
 
 def _redirect_with_params(url_name, *args, **kwargs):
@@ -265,8 +370,6 @@ class UserOAuth2(object):
         """Initialize the Oauth2 Object
         :param request: Django request object
         :param scopes: Scopes desired for this OAuth2 flow
-        :param return_url: URL to return to after authorization is complete
-        :return:
         """
         self.request = request
         self.return_url = return_url or request.get_full_path()
@@ -276,7 +379,7 @@ class UserOAuth2(object):
 
         # make sure previously requested custom scopes are maintained
         # in future authorizations
-        credentials = storage.get_storage(self.request).get()
+        credentials = self.credentials
         if credentials:
             self.scopes |= credentials.scopes
 
@@ -287,8 +390,7 @@ class UserOAuth2(object):
             'scopes': self.scopes
         }
 
-        return _redirect_with_params('google_oauth:authorize',
-                                     **get_params)
+        return _redirect_with_params('google_oauth:authorize', **get_params)
 
     def has_credentials(self):
         """Returns True if there are valid credentials for the current user
@@ -299,7 +401,11 @@ class UserOAuth2(object):
     @property
     def credentials(self):
         """Gets the authorized credentials for this flow, if they exist"""
-        return storage.get_storage(self.request).get()
+        if oauth2_settings.storage_model:
+            if self.request.user.is_authenticated():
+                return get_storage(self.request).get()
+        else:
+            return get_storage(self.request).get()
 
     @property
     def http(self):
