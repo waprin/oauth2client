@@ -20,7 +20,6 @@ from six.moves.urllib import parse
 from oauth2client.contrib import django_util
 
 
-
 def oauth_required(decorated_function=None, scopes=None, **decorator_kwargs):
     """ Decorator to require OAuth2 credentials for a view
 
@@ -40,7 +39,8 @@ def oauth_required(decorated_function=None, scopes=None, **decorator_kwargs):
                        developerKey=API_KEY)
           events = service.events().list(
                                     calendarId='primary').execute()['items']
-          return HttpResponse("email: %s, calendar: %s" % (email, str(events)))
+          return HttpResponse("email: {0}, calendar: {1}".format(
+                               email, str(events)))
 
     :param decorated_function: View function to decorate, must have the Django
            request object as the first argument
