@@ -20,7 +20,6 @@ in the configured storage."""
 import hashlib
 import json
 import os
-import pickle
 
 from django import http, shortcuts
 from django.conf import settings
@@ -57,7 +56,7 @@ def _make_flow(request, scopes, return_url=None):
             urlresolvers.reverse("google_oauth:callback")))
 
     flow_key = _FLOW_KEY.format(csrf_token)
-    request.session[flow_key] = pickle.dumps(flow)
+    request.session[flow_key] = json.dumps(flow)
     return flow
 
 
@@ -65,7 +64,7 @@ def _get_flow_for_token(csrf_token, request):
     """ Looks up the flow in session to recover information about requested
     scopes."""
     flow_pickle = request.session.get(_FLOW_KEY.format(csrf_token), None)
-    return None if flow_pickle is None else pickle.loads(flow_pickle)
+    return None if flow_pickle is None else json.loads(flow_pickle)
 
 
 def oauth2_callback(request):
