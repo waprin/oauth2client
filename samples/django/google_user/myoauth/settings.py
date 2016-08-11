@@ -101,9 +101,9 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-GOOGLE_OAUTH2_CLIENT_ID = 'YOUR_CLIENT_ID'
+GOOGLE_OAUTH2_CLIENT_ID = '1054618175867-hjrbiaulkc9782hkibkc7p7q312b3avr.apps.googleusercontent.com'
 
-GOOGLE_OAUTH2_CLIENT_SECRET = 'YOUR_CLIENT_SECRET'
+GOOGLE_OAUTH2_CLIENT_SECRET = 'wbFuxQEYVhsdt-lKYSRLbLEV'
 
 GOOGLE_OAUTH2_SCOPES = ('email', 'https://www.googleapis.com/auth/calendar',
                         'profile')

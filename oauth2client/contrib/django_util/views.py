@@ -28,8 +28,11 @@ from django.shortcuts import redirect
 from six.moves.urllib import parse
 
 from oauth2client import client
+from oauth2client.client import OAuth2WebFlowEncoder
 from oauth2client.contrib import django_util
 from oauth2client.contrib.django_util import get_storage, signals
+
+import jsonpickle
 
 _CSRF_KEY = 'google_oauth2_csrf_token'
 _FLOW_KEY = 'google_oauth2_flow_{0}'
@@ -56,7 +59,8 @@ def _make_flow(request, scopes, return_url=None):
             urlresolvers.reverse("google_oauth:callback")))
 
     flow_key = _FLOW_KEY.format(csrf_token)
-    request.session[flow_key] = json.dumps(flow)
+    #request.session[flow_key] = json.dumps(flow, cls=OAuth2WebFlowEncoder)
+    request.session[flow_key] = jsonpickle.encode(flow)
     return flow
 
 
@@ -64,7 +68,7 @@ def _get_flow_for_token(csrf_token, request):
     """ Looks up the flow in session to recover information about requested
     scopes."""
     flow_pickle = request.session.get(_FLOW_KEY.format(csrf_token), None)
-    return None if flow_pickle is None else json.loads(flow_pickle)
+    return None if flow_pickle is None else jsonpickle.decode(flow_pickle)
 
 
 def oauth2_callback(request):

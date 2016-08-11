@@ -2148,6 +2148,11 @@ class OAuth2WebServerFlow(Flow):
             raise FlowExchangeError(error_msg)
 
 
+class OAuth2WebFlowEncoder(json.JSONEncoder):
+    def default(self, obj):
+        return obj.__dict__
+
+
 @util.positional(2)
 def flow_from_clientsecrets(filename, scope, redirect_uri=None,
                             message=None, cache=None, login_hint=None,
